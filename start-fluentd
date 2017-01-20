@@ -1,8 +1,12 @@
 #!/bin/sh
 
+SYSTEM_LOG_LEVEL=${SYSTEM_LOG_LEVEL:-info}
+
 ELASTICSEARCH_HOST=${ELASTICSEARCH_HOST:-es-logging.default.svc}
 ELASTICSEARCH_PORT=${ELASTICSEARCH_PORT:-9200}
 ELASTICSEARCH_SCHEME=${ELASTICSEARCH_SCHEME:-http}
+ELASTICSEARCH_LOG_LEVEL=${ELASTICSEARCH_LOG_LEVEL:-info}
+ELASTICSEARCH_USE_TIME_KEY=${ELASTICSEARCH_USE_TIME_KEY:-true}
 
 FLUENTD_FLUSH_INTERVAL=${FLUENTD_FLUSH_INTERVAL:-10s}
 FLUENTD_FLUSH_THREADS=${FLUENTD_FLUSH_THREADS:-4}
@@ -15,6 +19,7 @@ FLUENTD_BUFFER_QUEUE_LIMIT=${FLUENTD_BUFFER_QUEUE_LIMIT:-8192}
 FLUENTD_BUFFER_TYPE=${FLUENTD_BUFFER_TYPE:-memory}
 FLUENTD_BUFFER_PATH=${FLUENTD_BUFFER_PATH:-/var/fluentd/buffer}
 FLUENTD_LOGSTASH_FORMAT=${FLUENTD_LOGSTASH_FORMAT:-true}
+FLUENTD_KEEP_TIME_KEY=${FLUENTD_KEEP_TIME_KEY:-true}
 
 KUBERNETES_PRESERVE_JSON_LOG=${KUBERNETES_PRESERVE_JSON_LOG:-true}
 KUBERNETES_URL=${KUBERNETES_URL:-https://kubernetes.default.svc}
@@ -24,6 +29,11 @@ mkdir /etc/fluent
 
 cat << EOF >> /etc/fluent/fluent.conf
 # input plugin that exports metrics
+
+<system>
+    log_level ${SYSTEM_LOG_LEVEL}
+</system>
+
 <source>
   @type prometheus
 </source>
@@ -41,7 +51,7 @@ cat << EOF >> /etc/fluent/fluent.conf
   tag kubernetes.*
   format json
   read_from_head true
-  keep_time_key true
+  keep_time_key ${FLUENTD_KEEP_TIME_KEY}
 </source>
 
 <filter kubernetes.**>
@@ -63,9 +73,9 @@ cat << EOF >> /etc/fluent/fluent.conf
 
 <match **>
   @type elasticsearch$([ "${ELASTICSEARCH_DYNAMIC}" == "true" ] && echo _dynamic)
-  @log_level info
+  @log_level ${ELASTICSEARCH_LOG_LEVEL}
   include_tag_key true
-  time_key time
+  $([ "${ELASTICSEARCH_USE_TIME_KEY}" == "true" ] && echo time_key time)  
   host ${ELASTICSEARCH_HOST}
   port ${ELASTICSEARCH_PORT}
   scheme ${ELASTICSEARCH_SCHEME}
